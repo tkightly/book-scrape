@@ -1,7 +1,6 @@
 package algolia
 
 import (
-	// "book-scrape/book"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -12,7 +11,7 @@ import (
 
 const indexName string = "shopify_products"
 
-const algoliaUrl string = "https://algolia.worldofbooks.com/1/indexes/*/queries"
+// const algoliaUrl string = "https://algolia.worldofbooks.com/1/indexes/*/queries"
 
 type Response struct {
 	Results []SearchResult `json:"results"`
@@ -41,7 +40,7 @@ type Request struct {
 	Page      int    `json:"page"`
 }
 
-func getPage(ctx context.Context, filter string, page int) (SearchResult, error) {
+func getPage(ctx context.Context, url string, filter string, page int) (SearchResult, error) {
 
 	reqBody, err := json.Marshal(searchRequest{
 		Requests: []Request{
@@ -57,7 +56,7 @@ func getPage(ctx context.Context, filter string, page int) (SearchResult, error)
 		return SearchResult{}, fmt.Errorf("%w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", algoliaUrl, bytes.NewReader(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(reqBody))
 
 	if err != nil {
 		return SearchResult{}, fmt.Errorf("%w", err)
@@ -97,11 +96,7 @@ func getPage(ctx context.Context, filter string, page int) (SearchResult, error)
 		return SearchResult{}, fmt.Errorf("%w", err)
 	}
 
-	if len(response.Results) < 1 {
-		return SearchResult{}, fmt.Errorf("algolia returned no search results")
-	} else {
-		return response.Results[0], nil
-	}
+	return response.Results[0], nil
 
 }
 
