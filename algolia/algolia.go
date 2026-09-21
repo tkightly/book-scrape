@@ -1,6 +1,7 @@
 package algolia
 
 import (
+	"book-scrape/book"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -11,7 +12,7 @@ import (
 
 const indexName string = "shopify_products"
 
-// const algoliaUrl string = "https://algolia.worldofbooks.com/1/indexes/*/queries"
+var algoliaUrl string = "https://algolia.worldofbooks.com/1/indexes/*/queries"
 
 type Response struct {
 	Results []SearchResult `json:"results"`
@@ -100,7 +101,37 @@ func getPage(ctx context.Context, url string, filter string, page int) (SearchRe
 
 }
 
-// func Search(ctx context.Context, author string) ([]book.Book, error) {
-//
-// 	return book, err
-// }
+func Search(ctx context.Context, author string) ([]book.Book, error) {
+
+	filter := fmt.Sprintf(`fromPrice > 0 AND author:%q`, author)
+
+	page := 0
+	var books []book.Book
+	for {
+		results, err := getPage(ctx, algoliaUrl, filter, page)
+
+		if err != nil {
+			return []book.Book{}, fmt.Errorf("%w", err)
+		}
+
+		for _, hit := range results.Hits {
+			book := book.Book{
+				ObjectID: hit.ObjectID,
+				Title:    hit.LongTitle,
+				Author:   hit.Author,
+				ImageURL: hit.ImageURL,
+			}
+
+			books = append(books, book)
+		}
+
+		page++
+
+		if page >= results.Pages {
+			break
+		}
+
+	}
+
+	return books, nil
+}

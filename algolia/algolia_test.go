@@ -71,3 +71,42 @@ func TestGetPage(t *testing.T) {
 	}
 
 }
+
+func TestSearch(t *testing.T) {
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		body, err := io.ReadAll(r.Body)
+
+		if err != nil {
+			t.Errorf("error: %s", err)
+		}
+
+		var jsonBody searchRequest
+
+		err = json.Unmarshal(body, &jsonBody)
+
+		if err != nil {
+			t.Errorf("error: %s", err)
+		}
+
+		resp := Response{Results: []SearchResult{{Hits: []Hit{{ObjectID: "test-id"}}, Page: 0, Pages: 1}}}
+
+		respJson, err := json.Marshal(resp)
+
+		if err != nil {
+			t.Errorf("error: %s", err)
+		}
+
+		_, err = w.Write(respJson)
+		if err != nil {
+			t.Errorf("error: %s", err)
+		}
+
+	}))
+
+	defer server.Close()
+
+	// ctx := context.Background()
+	algoliaUrl = server.URL
+}
