@@ -1,9 +1,0 @@
-{
-  "requests": [
-    {
-      "indexName": "shopify_products",
-      "filters": "fromPrice > 0 AND author:\"Gene \\\"Wolfe\\\"\"",
-      "page": 0
-    }
-  ]
-}

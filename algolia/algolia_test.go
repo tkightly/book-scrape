@@ -90,7 +90,13 @@ func TestSearch(t *testing.T) {
 			t.Errorf("error: %s", err)
 		}
 
-		resp := Response{Results: []SearchResult{{Hits: []Hit{{ObjectID: "test-id"}}, Page: 0, Pages: 1}}}
+		var resp Response
+
+		if jsonBody.Requests[0].Page == 0 {
+			resp = Response{Results: []SearchResult{{Hits: []Hit{{ObjectID: "test-id-1", Author: "Gene Wolfe"}}, Page: 0, Pages: 2}}}
+		} else if jsonBody.Requests[0].Page == 1 {
+			resp = Response{Results: []SearchResult{{Hits: []Hit{{ObjectID: "test-id", Author: "Andy Weir"}}, Page: 1, Pages: 2}}}
+		}
 
 		respJson, err := json.Marshal(resp)
 
@@ -99,6 +105,7 @@ func TestSearch(t *testing.T) {
 		}
 
 		_, err = w.Write(respJson)
+
 		if err != nil {
 			t.Errorf("error: %s", err)
 		}
@@ -107,6 +114,24 @@ func TestSearch(t *testing.T) {
 
 	defer server.Close()
 
-	// ctx := context.Background()
+	ctx := context.Background()
+
+	var algoliaUrlReal = algoliaUrl
 	algoliaUrl = server.URL
+	defer func() { algoliaUrl = algoliaUrlReal }()
+
+	hits, err := Search(ctx, "Gene Wolfe")
+
+	if err != nil {
+		t.Errorf("error: %s", err)
+	}
+
+	if hits[0].Author != "Gene Wolfe" {
+		t.Errorf("Got %v, want %v", hits[0].Author, "Gene Wolfe")
+	}
+
+	if hits[1].Author != "Andy Weir" {
+		t.Errorf("Got %v, want %v", hits[1].Author, "Andy Weir")
+	}
+
 }
