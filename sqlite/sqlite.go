@@ -70,5 +70,14 @@ func (d *Db) ListBooks(ctx context.Context) ([]book.Book, error) {
 
 func (d *Db) SyncBooks(ctx context.Context, added, removed []book.Book) error {
 
+	addedMap := make(map[string]struct{})
+
+	tx, err := d.conn.BeginTx(ctx, &sql.TxOptions{})
+
+	tx.PrepareContext(ctx, "INSERT INTO books (ObjectID, Title, Author, ImageURL) VALUES (?, ?, ?, ?) ON CONFLICT(ObjectID) DO UPDATE SET Title = excluded.Title, Author = excluded.Author, ImageURL = excluded.ImageURL")
+	if err != nil {
+		return fmt.Errorf("%w", err)
+	}
+
 	return nil
 }
