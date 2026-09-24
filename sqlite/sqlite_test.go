@@ -2,11 +2,12 @@ package sqlite
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
 func TestNewDb(t *testing.T) {
-	path := t.TempDir() + "db.db"
+	path := filepath.Join(t.TempDir(), "db.db")
 
 	_, err := NewDb(path)
 
