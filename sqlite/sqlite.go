@@ -72,12 +72,51 @@ func (d *Db) SyncBooks(ctx context.Context, added, removed []book.Book) error {
 
 	addedMap := make(map[string]struct{})
 
+	for _, addedBook := range added {
+		addedMap[addedBook.ObjectID] = struct{}{}
+	}
+
 	tx, err := d.conn.BeginTx(ctx, &sql.TxOptions{})
 
-	tx.PrepareContext(ctx, "INSERT INTO books (ObjectID, Title, Author, ImageURL) VALUES (?, ?, ?, ?) ON CONFLICT(ObjectID) DO UPDATE SET Title = excluded.Title, Author = excluded.Author, ImageURL = excluded.ImageURL")
 	if err != nil {
 		return fmt.Errorf("%w", err)
 	}
 
+	addedStmt, err := tx.PrepareContext(ctx, "INSERT INTO books (ObjectID, Title, Author, ImageURL) VALUES (?, ?, ?, ?) ON CONFLICT(ObjectID) DO UPDATE SET Title = excluded.Title, Author = excluded.Author, ImageURL = excluded.ImageURL")
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("%w", err)
+	}
+
+	defer addedStmt.Close()
+
+	for _, addedBook := range added {
+		if _, err := addedStmt.ExecContext(ctx, addedBook.ObjectID, addedBook.Title, addedBook.Author, addedBook.ImageURL); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("%w", err)
+		}
+	}
+
+	removedStmt, err := tx.PrepareContext(ctx, "DELETE FROM books WHERE ObjectID == ?")
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("%w", err)
+	}
+
+	defer removedStmt.Close()
+
+	for _, removedBook := range removed {
+		if _, ok := addedMap[removedBook.ObjectID]; ok == false {
+			if _, err := removedStmt.ExecContext(ctx, removedBook.ObjectID); err != nil {
+				tx.Rollback()
+				return fmt.Errorf("%w", err)
+			}
+		}
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("%w", err)
+	}
 	return nil
 }
