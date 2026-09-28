@@ -13,6 +13,69 @@ type columnInfo struct {
 	typ  string
 }
 
+func seedDb(t *testing.T, ctx context.Context, filePath string) (error, *Db, []book.Book) {
+
+	path := filepath.Join(t.TempDir(), filePath)
+
+	db, err := NewDb(path)
+
+	if err != nil {
+		t.Errorf("error: %s", err)
+	}
+
+	_, err = os.Stat(path)
+
+	if err != nil {
+		t.Errorf("error: %s", err)
+	}
+
+	expectedBooks := []book.Book{
+		{
+			ObjectID: "0001",
+			Title:    "Test Book 1",
+			Author:   "Test Author 1",
+			ImageURL: "https://image.com/testImage1.jpg",
+		},
+		{
+			ObjectID: "0002",
+			Title:    "Test Book 2",
+			Author:   "Test Author 2",
+			ImageURL: "https://image.com/testImage2.jpg",
+		},
+		{
+			ObjectID: "0003",
+			Title:    "Test Book 3",
+			Author:   "Test Author",
+			ImageURL: "https://image.com/testImage3.jpg",
+		},
+		{
+			ObjectID: "0004",
+			Title:    "Test Book 4",
+			Author:   "Test Author 4",
+			ImageURL: "https://image.com/testImage4.jpg",
+		},
+	}
+
+	stmt, err := db.conn.PrepareContext(ctx, "INSERT INTO books (ObjectID, Title, Author, ImageURL) VALUES (?,?,?,?) ")
+
+	if err != nil {
+		t.Errorf("error: %s", err)
+	}
+
+	defer stmt.Close()
+
+	for _, book := range expectedBooks {
+
+		if _, err := stmt.ExecContext(ctx, book.ObjectID, book.Title, book.Author, book.ImageURL); err != nil {
+			t.Errorf("error: %s", err)
+		}
+
+	}
+
+	return nil, db, expectedBooks
+
+}
+
 func TestNewDb(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "db.db")
 
@@ -173,6 +236,148 @@ func TestListBooks(t *testing.T) {
 	}
 
 	for _, want := range expectedBooks {
+
+		if got, ok := booksMap[want.ObjectID]; ok != true {
+			t.Errorf("Expected data not present: want %v, got %v", want.ObjectID, got.ObjectID)
+		} else if want != got {
+			t.Errorf("Wanted row dosn't match got row")
+		}
+
+	}
+
+}
+
+func TestSyncBooks(t *testing.T) {
+
+	path := filepath.Join(t.TempDir(), "db.db")
+
+	ctx := context.Background()
+
+	db, err := NewDb(path)
+
+	if err != nil {
+		t.Errorf("error: %s", err)
+	}
+
+	_, err = os.Stat(path)
+
+	if err != nil {
+		t.Errorf("error: %s", err)
+	}
+
+	expectedBooks := [4]book.Book{
+		{
+			ObjectID: "0001",
+			Title:    "Test Book 1",
+			Author:   "Test Author 1",
+			ImageURL: "https://image.com/testImage1.jpg",
+		},
+		{
+			ObjectID: "0002",
+			Title:    "Test Book 2",
+			Author:   "Test Author 2",
+			ImageURL: "https://image.com/testImage2.jpg",
+		},
+		{
+			ObjectID: "0003",
+			Title:    "Test Book 3",
+			Author:   "Test Author",
+			ImageURL: "https://image.com/testImage3.jpg",
+		},
+		{
+			ObjectID: "0004",
+			Title:    "Test Book 4",
+			Author:   "Test Author 4",
+			ImageURL: "https://image.com/testImage4.jpg",
+		},
+	}
+
+	stmt, err := db.conn.PrepareContext(ctx, "INSERT INTO books (ObjectID, Title, Author, ImageURL) VALUES (?,?,?,?) ")
+
+	if err != nil {
+		t.Errorf("error: %s", err)
+	}
+
+	defer stmt.Close()
+
+	for _, book := range expectedBooks {
+
+		if _, err := stmt.ExecContext(ctx, book.ObjectID, book.Title, book.Author, book.ImageURL); err != nil {
+			t.Errorf("error: %s", err)
+		}
+
+	}
+
+	addBooks := []book.Book{
+		{
+			ObjectID: "0005",
+			Title:    "Test Book 5",
+			Author:   "Test Author 5",
+			ImageURL: "https://image.com/testImage5.jpg",
+		},
+	}
+
+	removeBooks := []book.Book{
+		{
+			ObjectID: "0004",
+			Title:    "Test Book 4",
+			Author:   "Test Author",
+			ImageURL: "https://image.com/testImage4.jpg",
+		},
+	}
+
+	err = db.SyncBooks(ctx, addBooks, removeBooks)
+
+	if err != nil {
+		t.Errorf("error: %s", err)
+	}
+
+	books, err := db.ListBooks(ctx)
+
+	expectedSyncedBooks := [4]book.Book{
+		{
+			ObjectID: "0001",
+			Title:    "Test Book 1",
+			Author:   "Test Author 1",
+			ImageURL: "https://image.com/testImage1.jpg",
+		},
+		{
+			ObjectID: "0002",
+			Title:    "Test Book 2",
+			Author:   "Test Author 2",
+			ImageURL: "https://image.com/testImage2.jpg",
+		},
+		{
+			ObjectID: "0003",
+			Title:    "Test Book 3",
+			Author:   "Test Author",
+			ImageURL: "https://image.com/testImage3.jpg",
+		},
+		{
+			ObjectID: "0005",
+			Title:    "Test Book 5",
+			Author:   "Test Author 5",
+			ImageURL: "https://image.com/testImage5.jpg",
+		},
+	}
+
+	if err != nil {
+		t.Errorf("error: %s", err)
+	}
+
+	if len(books) != len(expectedSyncedBooks) {
+		t.Errorf("error: retrieved book count does not match: want %v, got %v", len(expectedSyncedBooks), len(books))
+	}
+
+	booksMap := make(map[string]book.Book)
+
+	for _, book := range books {
+
+		booksMap[book.ObjectID] = book
+
+	}
+
+	for _, want := range expectedSyncedBooks {
 
 		if got, ok := booksMap[want.ObjectID]; ok != true {
 			t.Errorf("Expected data not present: want %v, got %v", want.ObjectID, got.ObjectID)
