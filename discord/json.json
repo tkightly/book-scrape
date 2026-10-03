@@ -1,0 +1,21 @@
+{
+  "content": "2 books found",
+  "embeds": [
+    {
+      "title": "Title of the book",
+      "description": "Some text about the book",
+      "color": 65280,
+      "image": {
+        "url": "https://www.worldofbooks.com/cdn/shop/files/0708882250.jpg"
+      }
+    },
+    {
+      "title": "Title of the book",
+      "description": "Some text about the book",
+      "color": 11,
+      "image": {
+        "url": "https://images-ext-1.discordapp.net/external/W4DBSP8JpKws0vMybJpcEbBZ_Zl0730dkzQW3bkuwSI/%3FupdatedAt%3D1787134665050/https/image-server.worldofbooks.com/images/9780575073760.jpg"
+      }
+    }
+  ]
+}

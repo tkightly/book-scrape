@@ -88,7 +88,7 @@ func TestDoDiff(t *testing.T) {
 			wantRemoved: makeBooks(),
 		},
 		{
-			name:        "duplicate ObjectID in updated",
+			name:        "duplicate ObjectID in updated but in stored",
 			stored:      makeBooks("0001", "0005"),
 			updated:     makeBooks("0001", "0001", "0005"),
 			wantAdded:   makeBooks(),
@@ -106,6 +106,13 @@ func TestDoDiff(t *testing.T) {
 			stored:      makeBooks("0001", "0001", "0005"),
 			updated:     makeBooks("0001", "0001", "0005"),
 			wantAdded:   makeBooks(),
+			wantRemoved: makeBooks(),
+		},
+		{
+			name:        "duplicate ObjectID in updated, not in stored",
+			stored:      makeBooks("0005"),
+			updated:     makeBooks("0001", "0001", "0005"),
+			wantAdded:   makeBooks("0001"),
 			wantRemoved: makeBooks(),
 		},
 	}
