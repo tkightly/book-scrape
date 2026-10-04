@@ -2,7 +2,43 @@ package main
 
 import (
 	"book-scrape/book"
+	"book-scrape/discord"
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"os"
 )
+
+type config struct {
+	discordWebhookURL string
+	searchAuthor      string
+	dbPath            string
+}
+
+func loadConfig() (config, error) {
+	var cfg config
+
+	vars := []struct {
+		name string
+		dest *string
+	}{
+		{"DISCORD_WEBHOOK_URL", &cfg.discordWebhookURL},
+		{"SEARCH_AUTHOR_NAME", &cfg.searchAuthor},
+		{"DB_PATH", &cfg.dbPath},
+	}
+
+	var errs []error
+
+	for _, v := range vars {
+		if value := os.Getenv(v.name); value != "" {
+			*v.dest = value
+		} else {
+			errs = append(errs, fmt.Errorf("%s is empty or not present", v.name))
+		}
+	}
+	return cfg, errors.Join(errs...)
+}
 
 func doDiff(storedBooks, updatedBooks []book.Book) (addedBooks []book.Book, removedBooks []book.Book) {
 
@@ -38,5 +74,17 @@ func doDiff(storedBooks, updatedBooks []book.Book) (addedBooks []book.Book, remo
 }
 
 func main() {
+
+	config, err := loadConfig()
+
+	if err != nil {
+		log.Fatalf("initialising config: %v", err)
+	}
+
+	err = discord.SendWebhook(context.Background(), []book.Book{{}}, config.discordWebhookURL)
+
+	if err != nil {
+		log.Fatal(err)
+	}
 
 }
