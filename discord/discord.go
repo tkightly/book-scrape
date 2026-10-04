@@ -21,6 +21,8 @@ type image struct {
 	URL string `json:"url"`
 }
 
+// TODO: implement to make TestSendWebhook pass (getPage in algolia has a similar shape)
+// TODO: check Discord's max embeds per message - what happens with 25 new books?
 func SendWebhook(ctx context.Context, updatedBooks []book.Book, url string) error {
 
 	return nil

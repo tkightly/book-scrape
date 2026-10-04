@@ -159,6 +159,23 @@ func TestNewDb(t *testing.T) {
 
 }
 
+func TestClose(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "db.db")
+	db, err := NewDb(path)
+
+	if err != nil {
+		t.Fatalf("could not create database: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Errorf("could not close the db: %v", err)
+	}
+
+	_, err = db.ListBooks(context.Background())
+	if err == nil {
+		t.Errorf("was able to execute query against the db after it should be closed")
+	}
+}
+
 func TestListBooks(t *testing.T) {
 
 	ctx := context.Background()

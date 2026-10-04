@@ -9,14 +9,20 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// TODO: nothing ever closes conn - Db needs a way for callers (main, tests) to release it
 type Db struct {
 	conn *sql.DB
+}
+
+func (d *Db) Close() error {
+	return d.conn.Close()
 }
 
 func NewDb(path string) (*Db, error) {
 
 	conn, err := sql.Open("sqlite", path)
 
+	// TODO: "%w" alone adds no context - say what failed (applies to every fmt.Errorf in this file)
 	if err != nil {
 		return nil, fmt.Errorf("%w", err)
 	}
@@ -27,6 +33,7 @@ func NewDb(path string) (*Db, error) {
 
 	_, err = db.conn.Exec("CREATE TABLE IF NOT EXISTS books(ObjectID TEXT PRIMARY KEY, Title TEXT NOT NULL, Author TEXT NOT NULL, ImageURL TEXT NOT NULL)")
 
+	// TODO: if this fails, what happens to the conn you just opened?
 	if err != nil {
 		return nil, fmt.Errorf("%w", err)
 	}
@@ -70,6 +77,7 @@ func (d *Db) ListBooks(ctx context.Context) ([]book.Book, error) {
 
 func (d *Db) SyncBooks(ctx context.Context, added, removed []book.Book) error {
 
+	// TODO: decide whether filtering removed-vs-added belongs here or only in doDiff
 	addedMap := make(map[string]struct{})
 
 	for _, addedBook := range added {
@@ -83,6 +91,7 @@ func (d *Db) SyncBooks(ctx context.Context, added, removed []book.Book) error {
 	}
 
 	addedStmt, err := tx.PrepareContext(ctx, "INSERT INTO books (ObjectID, Title, Author, ImageURL) VALUES (?, ?, ?, ?) ON CONFLICT(ObjectID) DO UPDATE SET Title = excluded.Title, Author = excluded.Author, ImageURL = excluded.ImageURL")
+	// TODO: tx.Rollback() is repeated 4 times - read `go doc database/sql.Tx.Rollback` (what happens after Commit?) and simplify
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("%w", err)
@@ -106,6 +115,7 @@ func (d *Db) SyncBooks(ctx context.Context, added, removed []book.Book) error {
 	defer removedStmt.Close()
 
 	for _, removedBook := range removed {
+		// TODO: `ok == false` is usually written as `!ok`
 		if _, ok := addedMap[removedBook.ObjectID]; ok == false {
 			if _, err := removedStmt.ExecContext(ctx, removedBook.ObjectID); err != nil {
 				tx.Rollback()

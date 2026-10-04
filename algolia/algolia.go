@@ -54,7 +54,7 @@ func getPage(ctx context.Context, url string, filter string, page int) (SearchRe
 	})
 
 	if err != nil {
-		return SearchResult{}, fmt.Errorf("%w", err)
+		return SearchResult{}, fmt.Errorf("failed to marshal: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(reqBody))
@@ -97,7 +97,11 @@ func getPage(ctx context.Context, url string, filter string, page int) (SearchRe
 		return SearchResult{}, fmt.Errorf("%w", err)
 	}
 
-	return response.Results[0], nil
+	if len(response.Results) > 0 {
+		return response.Results[0], nil
+	} else {
+		return SearchResult{}, nil
+	}
 
 }
 

@@ -152,6 +152,10 @@ func TestSendWebhook(t *testing.T) {
 					t.Errorf("Content-Type: got %s, want %s", gotRequest.contentType, "application/json")
 				}
 
+				if gotRequest.userAgent != "DiscordBot (https://discord.com, 0.0.1)" {
+					t.Errorf("User-Agent: got %s, want %s", gotRequest.userAgent, "DiscordBot (https://discord.com, 0.0.1)")
+				}
+
 				if i >= len(tc.wantRequestBodies) {
 					t.Errorf("got %d requests, want %d", len(got), len(tc.wantRequestBodies))
 					continue
