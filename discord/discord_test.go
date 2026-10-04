@@ -4,12 +4,29 @@ import (
 	"book-scrape/book"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 )
+
+func makeEmbeds(books ...book.Book) (embeds []embed) {
+	for _, embeddedBook := range books {
+		embeds = append(embeds, embed{
+			Title:       embeddedBook.Title,
+			Description: fmt.Sprintf("By %s", embeddedBook.Author),
+			Color:       65280,
+			Image: &image{
+				URL: embeddedBook.ImageURL,
+			},
+		},
+		)
+	}
+
+	return embeds
+}
 
 func TestWebhookBodyJSON(t *testing.T) {
 	tests := []struct {
@@ -63,9 +80,7 @@ func TestWebhookBodyJSON(t *testing.T) {
 				t.Errorf("want %v, got %v", want, got)
 			}
 		})
-
 	}
-
 }
 
 type recordedRequest struct {
@@ -77,36 +92,43 @@ type recordedRequest struct {
 
 func TestSendWebhook(t *testing.T) {
 
+	books := book.MakeBooks("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11")
+	embeds := makeEmbeds(books...)
+
 	tests := []struct {
 		name              string
 		books             []book.Book
 		wantRequests      int
 		wantRequestBodies []webhookBody
 	}{
-		{name: "no books sends nothing", books: nil, wantRequests: 0},
 		{
-			name: "one book sends single request",
-			books: []book.Book{
-				{
-					ObjectID: "0001",
-					Title:    "A book",
-					Author:   "Author",
-					ImageURL: "https://example.com/image.jpg",
-				},
-			},
+			name:         "no books sends nothing",
+			books:        nil,
+			wantRequests: 0,
+		},
+		{
+			name:         "one book sends single request",
+			books:        books[0:1],
 			wantRequests: 1,
 			wantRequestBodies: []webhookBody{
 				{
-					Content: "1 book",
-					Embeds: []embed{
-						{
-							Title:       "A book",
-							Description: "By Author",
-							Color:       32,
-							Image: &image{
-								URL: "https://example.com/image.jpg"},
-						},
-					},
+					Content: "1 book found",
+					Embeds:  embeds[0:1],
+				},
+			},
+		},
+		{
+			name:         "eleven books sends two requests",
+			books:        books,
+			wantRequests: 2,
+			wantRequestBodies: []webhookBody{
+				{
+					Content: "11 books found",
+					Embeds:  embeds[0:10],
+				},
+				{
+					Content: "",
+					Embeds:  embeds[10:11],
 				},
 			},
 		},

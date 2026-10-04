@@ -11,6 +11,7 @@ import (
 )
 
 const indexName string = "shopify_products"
+const responseBodyReadLimit int64 = 16384
 
 var algoliaUrl string = "https://algolia.worldofbooks.com/1/indexes/*/queries"
 
@@ -66,7 +67,7 @@ func getPage(ctx context.Context, url string, filter string, page int) (SearchRe
 	req.Header.Set("x-algolia-api-key", "proxy")
 	req.Header.Set("x-algolia-application-id", "AR33G9NJGJ")
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "text/plain") // TODO: see if application.json would work here too
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Origin", "https://www.worldofbooks.com")
 
 	client := http.Client{}
@@ -83,7 +84,7 @@ func getPage(ctx context.Context, url string, filter string, page int) (SearchRe
 		return SearchResult{}, fmt.Errorf("algolia returned status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, responseBodyReadLimit))
 
 	if err != nil {
 		return SearchResult{}, fmt.Errorf("reading response body: %w", err)

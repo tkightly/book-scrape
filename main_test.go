@@ -7,14 +7,6 @@ import (
 	"testing"
 )
 
-func makeBooks(ids ...string) (books []book.Book) {
-	for _, id := range ids {
-		books = append(books, book.Book{ObjectID: id, Title: "Title " + id, Author: "Author " + id, ImageURL: "https://image.com/testImage" + id + ".jpg"})
-	}
-
-	return books
-}
-
 func getIds(books []book.Book) (ids []string) {
 	for _, thisBook := range books {
 		ids = append(ids, thisBook.ObjectID)
@@ -54,66 +46,66 @@ func TestDoDiff(t *testing.T) {
 	}{
 		{
 			name:        "one added, one removed, one unchanged",
-			stored:      makeBooks("0001", "0004"),
-			updated:     makeBooks("0001", "0005"),
-			wantAdded:   makeBooks("0005"),
-			wantRemoved: makeBooks("0004"),
+			stored:      book.MakeBooks("0001", "0004"),
+			updated:     book.MakeBooks("0001", "0005"),
+			wantAdded:   book.MakeBooks("0005"),
+			wantRemoved: book.MakeBooks("0004"),
 		},
 		{
 			name:        "empty store, empty update",
-			stored:      makeBooks(),
-			updated:     makeBooks(),
-			wantAdded:   makeBooks(),
-			wantRemoved: makeBooks(),
+			stored:      book.MakeBooks(),
+			updated:     book.MakeBooks(),
+			wantAdded:   book.MakeBooks(),
+			wantRemoved: book.MakeBooks(),
 		},
 		{
 			name:        "empty store, many added",
-			stored:      makeBooks(),
-			updated:     makeBooks("0001", "0005"),
-			wantAdded:   makeBooks("0001", "0005"),
-			wantRemoved: makeBooks(),
+			stored:      book.MakeBooks(),
+			updated:     book.MakeBooks("0001", "0005"),
+			wantAdded:   book.MakeBooks("0001", "0005"),
+			wantRemoved: book.MakeBooks(),
 		},
 		{
 			name:        "some in store, empty added",
-			stored:      makeBooks("0001", "0005"),
-			updated:     makeBooks(),
-			wantAdded:   makeBooks(),
-			wantRemoved: makeBooks("0001", "0005"),
+			stored:      book.MakeBooks("0001", "0005"),
+			updated:     book.MakeBooks(),
+			wantAdded:   book.MakeBooks(),
+			wantRemoved: book.MakeBooks("0001", "0005"),
 		},
 		{
 			name:        "no change",
-			stored:      makeBooks("0001", "0005"),
-			updated:     makeBooks("0001", "0005"),
-			wantAdded:   makeBooks(),
-			wantRemoved: makeBooks(),
+			stored:      book.MakeBooks("0001", "0005"),
+			updated:     book.MakeBooks("0001", "0005"),
+			wantAdded:   book.MakeBooks(),
+			wantRemoved: book.MakeBooks(),
 		},
 		{
 			name:        "duplicate ObjectID in updated but in stored",
-			stored:      makeBooks("0001", "0005"),
-			updated:     makeBooks("0001", "0001", "0005"),
-			wantAdded:   makeBooks(),
-			wantRemoved: makeBooks(),
+			stored:      book.MakeBooks("0001", "0005"),
+			updated:     book.MakeBooks("0001", "0001", "0005"),
+			wantAdded:   book.MakeBooks(),
+			wantRemoved: book.MakeBooks(),
 		},
 		{
 			name:        "duplicate ObjectID in stored",
-			stored:      makeBooks("0001", "0001", "0005"),
-			updated:     makeBooks("0001", "0005"),
-			wantAdded:   makeBooks(),
-			wantRemoved: makeBooks(),
+			stored:      book.MakeBooks("0001", "0001", "0005"),
+			updated:     book.MakeBooks("0001", "0005"),
+			wantAdded:   book.MakeBooks(),
+			wantRemoved: book.MakeBooks(),
 		},
 		{
 			name:        "duplicate ObjectID in both",
-			stored:      makeBooks("0001", "0001", "0005"),
-			updated:     makeBooks("0001", "0001", "0005"),
-			wantAdded:   makeBooks(),
-			wantRemoved: makeBooks(),
+			stored:      book.MakeBooks("0001", "0001", "0005"),
+			updated:     book.MakeBooks("0001", "0001", "0005"),
+			wantAdded:   book.MakeBooks(),
+			wantRemoved: book.MakeBooks(),
 		},
 		{
 			name:        "duplicate ObjectID in updated, not in stored",
-			stored:      makeBooks("0005"),
-			updated:     makeBooks("0001", "0001", "0005"),
-			wantAdded:   makeBooks("0001"),
-			wantRemoved: makeBooks(),
+			stored:      book.MakeBooks("0005"),
+			updated:     book.MakeBooks("0001", "0001", "0005"),
+			wantAdded:   book.MakeBooks("0001"),
+			wantRemoved: book.MakeBooks(),
 		},
 	}
 
