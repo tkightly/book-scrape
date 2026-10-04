@@ -9,7 +9,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// TODO: nothing ever closes conn - Db needs a way for callers (main, tests) to release it
 type Db struct {
 	conn *sql.DB
 }
@@ -22,9 +21,8 @@ func NewDb(path string) (*Db, error) {
 
 	conn, err := sql.Open("sqlite", path)
 
-	// TODO: "%w" alone adds no context - say what failed (applies to every fmt.Errorf in this file)
 	if err != nil {
-		return nil, fmt.Errorf("%w", err)
+		return nil, fmt.Errorf("opening db at %q: %w", path, err)
 	}
 
 	db := Db{
@@ -33,9 +31,11 @@ func NewDb(path string) (*Db, error) {
 
 	_, err = db.conn.Exec("CREATE TABLE IF NOT EXISTS books(ObjectID TEXT PRIMARY KEY, Title TEXT NOT NULL, Author TEXT NOT NULL, ImageURL TEXT NOT NULL)")
 
-	// TODO: if this fails, what happens to the conn you just opened?
 	if err != nil {
-		return nil, fmt.Errorf("%w", err)
+
+		// the db.conn.Exec error is the error we really care about
+		_ = conn.Close()
+		return nil, fmt.Errorf("creating table: %w", err)
 	}
 
 	return &db, nil
@@ -48,19 +48,22 @@ func (d *Db) ListBooks(ctx context.Context) ([]book.Book, error) {
 	rows, err := d.conn.QueryContext(ctx, query)
 
 	if err != nil {
-		return nil, fmt.Errorf("%w", err)
+		return nil, fmt.Errorf("executing query %q: %w", query, err)
 	}
 
 	defer rows.Close()
 
 	var books []book.Book
 
+	i := 0
+
 	for rows.Next() {
 
 		var book book.Book
+		i++
 
 		if err := rows.Scan(&book.ObjectID, &book.Title, &book.Author, &book.ImageURL); err != nil {
-			return nil, fmt.Errorf("%w", err)
+			return nil, fmt.Errorf("scanning row %d: %w", i, err)
 
 		}
 
@@ -69,7 +72,7 @@ func (d *Db) ListBooks(ctx context.Context) ([]book.Book, error) {
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("%w", err)
+		return nil, fmt.Errorf("looping rows: %w", err)
 	}
 
 	return books, nil
@@ -77,7 +80,7 @@ func (d *Db) ListBooks(ctx context.Context) ([]book.Book, error) {
 
 func (d *Db) SyncBooks(ctx context.Context, added, removed []book.Book) error {
 
-	// TODO: decide whether filtering removed-vs-added belongs here or only in doDiff
+	// added should win over removed
 	addedMap := make(map[string]struct{})
 
 	for _, addedBook := range added {
@@ -85,48 +88,42 @@ func (d *Db) SyncBooks(ctx context.Context, added, removed []book.Book) error {
 	}
 
 	tx, err := d.conn.BeginTx(ctx, &sql.TxOptions{})
-
 	if err != nil {
-		return fmt.Errorf("%w", err)
+		return fmt.Errorf("beginning db transaction: %w", err)
 	}
+	defer tx.Rollback()
 
 	addedStmt, err := tx.PrepareContext(ctx, "INSERT INTO books (ObjectID, Title, Author, ImageURL) VALUES (?, ?, ?, ?) ON CONFLICT(ObjectID) DO UPDATE SET Title = excluded.Title, Author = excluded.Author, ImageURL = excluded.ImageURL")
-	// TODO: tx.Rollback() is repeated 4 times - read `go doc database/sql.Tx.Rollback` (what happens after Commit?) and simplify
 	if err != nil {
-		tx.Rollback()
-		return fmt.Errorf("%w", err)
+		return fmt.Errorf("preparing INSERT statement: %w", err)
 	}
 
 	defer addedStmt.Close()
 
 	for _, addedBook := range added {
 		if _, err := addedStmt.ExecContext(ctx, addedBook.ObjectID, addedBook.Title, addedBook.Author, addedBook.ImageURL); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("%w", err)
+			return fmt.Errorf("executing INSERT statement for added book id %q, title %q: %w", addedBook.ObjectID, addedBook.Title, err)
 		}
 	}
 
 	removedStmt, err := tx.PrepareContext(ctx, "DELETE FROM books WHERE ObjectID == ?")
 	if err != nil {
-		tx.Rollback()
-		return fmt.Errorf("%w", err)
+		return fmt.Errorf("preparing DELETE statement: %w", err)
 	}
 
 	defer removedStmt.Close()
 
 	for _, removedBook := range removed {
-		// TODO: `ok == false` is usually written as `!ok`
-		if _, ok := addedMap[removedBook.ObjectID]; ok == false {
+		if _, ok := addedMap[removedBook.ObjectID]; !ok {
 			if _, err := removedStmt.ExecContext(ctx, removedBook.ObjectID); err != nil {
-				tx.Rollback()
-				return fmt.Errorf("%w", err)
+				return fmt.Errorf("executing DELETE statement for removed book id %q, title %q: %w", removedBook.ObjectID, removedBook.Title, err)
 			}
 		}
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return fmt.Errorf("%w", err)
+		return fmt.Errorf("committing transaction: %w", err)
 	}
 	return nil
 }

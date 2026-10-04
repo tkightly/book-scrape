@@ -54,19 +54,19 @@ func getPage(ctx context.Context, url string, filter string, page int) (SearchRe
 	})
 
 	if err != nil {
-		return SearchResult{}, fmt.Errorf("failed to marshal: %w", err)
+		return SearchResult{}, fmt.Errorf("marshaling searchRequest: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(reqBody))
 
 	if err != nil {
-		return SearchResult{}, fmt.Errorf("%w", err)
+		return SearchResult{}, fmt.Errorf("creating http request: %w", err)
 	}
 
 	req.Header.Set("x-algolia-api-key", "proxy")
 	req.Header.Set("x-algolia-application-id", "AR33G9NJGJ")
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "text/plain") // TODO see if application.json would work here too
+	req.Header.Set("Content-Type", "text/plain") // TODO: see if application.json would work here too
 	req.Header.Set("Origin", "https://www.worldofbooks.com")
 
 	client := http.Client{}
@@ -74,7 +74,7 @@ func getPage(ctx context.Context, url string, filter string, page int) (SearchRe
 	resp, err := client.Do(req)
 
 	if err != nil {
-		return SearchResult{}, fmt.Errorf("%w", err)
+		return SearchResult{}, fmt.Errorf("making web request: %w", err)
 	}
 
 	defer resp.Body.Close()
@@ -86,7 +86,7 @@ func getPage(ctx context.Context, url string, filter string, page int) (SearchRe
 	body, err := io.ReadAll(resp.Body)
 
 	if err != nil {
-		return SearchResult{}, fmt.Errorf("%w", err)
+		return SearchResult{}, fmt.Errorf("reading response body: %w", err)
 	}
 
 	var response Response
@@ -94,7 +94,7 @@ func getPage(ctx context.Context, url string, filter string, page int) (SearchRe
 	err = json.Unmarshal(body, &response)
 
 	if err != nil {
-		return SearchResult{}, fmt.Errorf("%w", err)
+		return SearchResult{}, fmt.Errorf("unmarshaling response body: %w", err)
 	}
 
 	if len(response.Results) > 0 {
@@ -115,7 +115,7 @@ func Search(ctx context.Context, author string) ([]book.Book, error) {
 		results, err := getPage(ctx, algoliaUrl, filter, page)
 
 		if err != nil {
-			return []book.Book{}, fmt.Errorf("%w", err)
+			return []book.Book{}, fmt.Errorf("getting results page %d for author %q: %w", page, author, err)
 		}
 
 		for _, hit := range results.Hits {

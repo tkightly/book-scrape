@@ -25,6 +25,13 @@ func seedDb(t *testing.T, ctx context.Context, filePath string) (*Db, []book.Boo
 		t.Fatalf("error: %s", err)
 	}
 
+	t.Cleanup(func() {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("error: %s", err)
+		}
+	})
+
 	_, err = os.Stat(path)
 
 	if err != nil {
@@ -86,7 +93,7 @@ func TestNewDb(t *testing.T) {
 	db, err := NewDb(path)
 
 	if err != nil {
-		t.Errorf("error: %s", err)
+		t.Fatalf("error: %s", err)
 	}
 
 	_, err = os.Stat(path)
@@ -157,6 +164,9 @@ func TestNewDb(t *testing.T) {
 		t.Errorf("error: %s", err)
 	}
 
+	if err := db.Close(); err != nil {
+		t.Fatalf("Could not close db: %v", err)
+	}
 }
 
 func TestClose(t *testing.T) {
@@ -185,7 +195,7 @@ func TestListBooks(t *testing.T) {
 	books, err := db.ListBooks(ctx)
 
 	if err != nil {
-		t.Errorf("error: %s", err)
+		t.Fatalf("error: %s", err)
 	}
 
 	if len(books) != len(expectedBooks) {
@@ -207,9 +217,7 @@ func TestListBooks(t *testing.T) {
 		} else if want != got {
 			t.Errorf("Wanted row dosn't match got row")
 		}
-
 	}
-
 }
 
 func TestSyncBooks(t *testing.T) {
