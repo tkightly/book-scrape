@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 )
 
 type config struct {
@@ -76,11 +77,10 @@ func doDiff(storedBooks, updatedBooks []book.Book) (addedBooks []book.Book, remo
 	return addedBooks, removedBooks
 }
 
-func main() {
-
+func run(ctx context.Context) error {
 	cfg, err := loadConfig()
 	if err != nil {
-		log.Fatalf("initialising config: %v", err)
+		return fmt.Errorf("initialising config: %w", err)
 	}
 
 	authorsSlice := strings.Split(cfg.searchAuthors, ",")
@@ -88,22 +88,20 @@ func main() {
 	for i := range authorsSlice {
 		trimmed := strings.TrimSpace(authorsSlice[i])
 		if trimmed != "" {
-			authors = append(authors, authorsSlice[i])
+			authors = append(authors, trimmed)
 		}
 	}
 
 	if len(authors) < 1 {
-		log.Fatalf("no authors to be searched in SEARCH_AUTHOR_NAMES: %q", cfg.searchAuthors)
+		return fmt.Errorf("no authors to be searched in SEARCH_AUTHOR_NAMES: %q", cfg.searchAuthors)
 	}
-
-	ctx := context.Background()
 
 	var updatedBooks []book.Book
 
 	for _, author := range authors {
 		books, err := algolia.Search(ctx, author)
 		if err != nil {
-			log.Fatalf("searching for books: %v", err)
+			return fmt.Errorf("searching for books: %w", err)
 		}
 
 		updatedBooks = append(updatedBooks, books...)
@@ -111,29 +109,43 @@ func main() {
 
 	db, err := sqlite.NewDb(cfg.dbPath)
 	if err != nil {
-		log.Fatalf("initialising db: %v", err)
+		return fmt.Errorf("initialising db: %w", err)
 	}
+	defer db.Close()
 
 	storedBooks, err := db.ListBooks(ctx)
 	if err != nil {
-		log.Fatalf("getting stored books: %v", err)
+		return fmt.Errorf("getting stored books: %w", err)
 	}
 
 	addedBooks, removedBooks := doDiff(storedBooks, updatedBooks)
 
 	err = discord.SendWebhook(ctx, authors, addedBooks, cfg.discordWebhookURL)
 	if err != nil {
-		log.Fatalf("sending discord webhook: %v", err)
+		return fmt.Errorf("sending discord webhook: %w", err)
 	}
 
 	err = db.SyncBooks(ctx, addedBooks, removedBooks)
 	if err != nil {
-		log.Fatalf("syncing books: %v", err)
+		return fmt.Errorf("syncing books: %w", err)
 	}
 
 	err = db.Close()
 	if err != nil {
-		log.Fatalf("closing database: %v", err)
+		return fmt.Errorf("closing database: %w", err)
+	}
+
+	return nil
+}
+
+func main() {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+
+	err := run(ctx)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 }

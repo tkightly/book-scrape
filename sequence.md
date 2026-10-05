@@ -6,4 +6,5 @@
 4. if any book is not in the sqlite, add it to a slice to be sent to discord and add it to the sqlite
 5. any book that is in sqlite but not the most recent list, remove it from the sqlite
 6. send to discord
+   - TODO: handle Discord rate limits (HTTP 429): use the `X-RateLimit-*` / `Retry-After` response headers to wait and retry instead of failing the run
 7. wait until the next schedule
