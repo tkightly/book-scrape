@@ -28,6 +28,52 @@ func makeEmbeds(books ...book.Book) (embeds []embed) {
 	return embeds
 }
 
+func TestBuildAuthorNames(t *testing.T) {
+
+	tests := []struct {
+		name             string
+		authorList       []string
+		wantAuthorString string
+	}{
+		{
+			name:             "no authors",
+			authorList:       []string{},
+			wantAuthorString: "",
+		},
+		{
+			name:             "one author",
+			authorList:       []string{"Gene Wolfe"},
+			wantAuthorString: "Gene Wolfe",
+		},
+		{
+			name:             "two authors",
+			authorList:       []string{"Gene Wolfe", "Iain Banks"},
+			wantAuthorString: "Gene Wolfe and Iain Banks",
+		},
+		{
+			name:             "three authors",
+			authorList:       []string{"Gene Wolfe", "Ursula K. Le Guin", "Iain Banks"},
+			wantAuthorString: "Gene Wolfe, Ursula K. Le Guin and Iain Banks",
+		},
+		{
+			name:             "four authors",
+			authorList:       []string{"Gene Wolfe", "Ursula K. Le Guin", "Iain Banks", "Bob"},
+			wantAuthorString: "Gene Wolfe, Ursula K. Le Guin, Iain Banks and Bob",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := buildAuthorNames(tc.authorList)
+			if tc.wantAuthorString != got {
+				t.Errorf("got %s, want %s", got, tc.wantAuthorString)
+			}
+
+		})
+	}
+
+}
+
 func TestWebhookBodyJSON(t *testing.T) {
 	tests := []struct {
 		name string
@@ -97,33 +143,37 @@ func TestSendWebhook(t *testing.T) {
 
 	tests := []struct {
 		name              string
+		authors           []string
 		books             []book.Book
 		wantRequests      int
 		wantRequestBodies []webhookBody
 	}{
 		{
 			name:         "no books sends nothing",
+			authors:      []string{},
 			books:        nil,
 			wantRequests: 0,
 		},
 		{
 			name:         "one book sends single request",
+			authors:      []string{"Author 1"},
 			books:        books[0:1],
 			wantRequests: 1,
 			wantRequestBodies: []webhookBody{
 				{
-					Content: "1 book found",
+					Content: "Search for Author 1 found 1 book",
 					Embeds:  embeds[0:1],
 				},
 			},
 		},
 		{
 			name:         "eleven books sends two requests",
+			authors:      []string{"Author 1", "Author 2", "Author 3"},
 			books:        books,
 			wantRequests: 2,
 			wantRequestBodies: []webhookBody{
 				{
-					Content: "11 books found",
+					Content: "Search for Author 1, Author 2 and Author 3 found 11 books",
 					Embeds:  embeds[0:10],
 				},
 				{
@@ -155,7 +205,7 @@ func TestSendWebhook(t *testing.T) {
 			}))
 			defer server.Close()
 
-			err := SendWebhook(context.Background(), tc.books, server.URL)
+			err := SendWebhook(context.Background(), tc.authors, tc.books, server.URL)
 
 			if err != nil {
 				t.Fatalf("SendWebhook returned error: %v", err)

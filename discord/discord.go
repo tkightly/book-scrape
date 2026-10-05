@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strings"
 )
 
 type webhookBody struct {
@@ -29,7 +30,22 @@ type image struct {
 
 const responseBodyReadLimit int64 = 4096
 
-func SendWebhook(ctx context.Context, updatedBooks []book.Book, url string) error {
+func buildAuthorNames(authorList []string) (authorString string) {
+
+	switch len(authorList) {
+	case 0:
+		return ""
+	case 1:
+		return authorList[0]
+	default:
+		authorString = strings.Join(authorList[:len(authorList)-1], ", ")
+		authorString = authorString + " and " + authorList[len(authorList)-1]
+	}
+
+	return authorString
+}
+
+func SendWebhook(ctx context.Context, authorNames []string, updatedBooks []book.Book, url string) error {
 
 	chunks := slices.Chunk(updatedBooks, 10)
 
@@ -60,9 +76,8 @@ func SendWebhook(ctx context.Context, updatedBooks []book.Book, url string) erro
 			if len(updatedBooks) != 1 {
 				plural = "s"
 			}
-			content = fmt.Sprintf("%d book%s found", len(updatedBooks), plural)
+			content = fmt.Sprintf("Search for %s found %d book%s", buildAuthorNames(authorNames), len(updatedBooks), plural)
 		} else {
-			content = ""
 		}
 
 		i++

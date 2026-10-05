@@ -11,7 +11,7 @@ import (
 )
 
 const indexName string = "shopify_products"
-const responseBodyReadLimit int64 = 16384
+const responseBodyReadLimit int64 = 1024000 // 1Mb
 
 var algoliaUrl string = "https://algolia.worldofbooks.com/1/indexes/*/queries"
 
@@ -95,7 +95,7 @@ func getPage(ctx context.Context, url string, filter string, page int) (SearchRe
 	err = json.Unmarshal(body, &response)
 
 	if err != nil {
-		return SearchResult{}, fmt.Errorf("unmarshaling response body: %w", err)
+		return SearchResult{}, fmt.Errorf("unmarshaling response body (%dKb): %w", (responseBodyReadLimit / 1000), err)
 	}
 
 	if len(response.Results) > 0 {
