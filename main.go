@@ -75,13 +75,13 @@ func doDiff(storedBooks, updatedBooks []book.Book) (addedBooks []book.Book, remo
 
 func main() {
 
-	config, err := loadConfig()
+	cfg, err := loadConfig()
 
 	if err != nil {
 		log.Fatalf("initialising config: %v", err)
 	}
 
-	err = discord.SendWebhook(context.Background(), []book.Book{{}}, config.discordWebhookURL)
+	err = discord.SendWebhook(context.Background(), []book.Book{{}}, cfg.discordWebhookURL)
 
 	if err != nil {
 		log.Fatal(err)
