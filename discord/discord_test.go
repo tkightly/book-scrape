@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func makeEmbeds(books ...book.Book) (embeds []embed) {
@@ -26,6 +28,105 @@ func makeEmbeds(books ...book.Book) (embeds []embed) {
 	}
 
 	return embeds
+}
+
+func TestSendWebRequestWithRetry(t *testing.T) {
+
+	books := book.MakeBooks("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11")
+	embeds := makeEmbeds(books...)
+	tests := []struct {
+		name        string
+		reqBody     webhookBody
+		wantRetries int32
+	}{
+		{
+			name: "single embed, no rate limit",
+			reqBody: webhookBody{
+				Content: "",
+				Embeds:  embeds[:1],
+			},
+			wantRetries: 0,
+		},
+		{
+			name: "single embed, 1 rate limit",
+			reqBody: webhookBody{
+				Content: "",
+				Embeds:  embeds[:1],
+			},
+			wantRetries: 1,
+		},
+		{
+			name: "single embed, 5 rate limit",
+			reqBody: webhookBody{
+				Content: "",
+				Embeds:  embeds[:1],
+			},
+			wantRetries: 5,
+		},
+	}
+
+	for _, tc := range tests {
+		var calls atomic.Int32
+
+		t.Run(tc.name, func(t *testing.T) {
+			var got []recordedRequest
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Errorf("reading request body: %v", err)
+				}
+
+				//record before responding
+				got = append(got, recordedRequest{
+					method:      r.Method,
+					contentType: r.Header.Get("Content-Type"),
+					userAgent:   r.Header.Get("User-Agent"),
+					body:        string(body),
+				})
+
+				if err != nil {
+					t.Errorf("could not unmarshal request body: %v", err)
+				}
+
+				if calls.Load() < tc.wantRetries {
+					calls.Add(1)
+					headers := w.Header()
+					headers.Set("Retry-After", "2")
+					w.WriteHeader(http.StatusTooManyRequests)
+				} else {
+					w.WriteHeader(http.StatusNoContent)
+				}
+			}))
+			defer server.Close()
+
+			client := http.Client{}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second+time.Duration(tc.wantRetries*2)*time.Second)
+			defer cancel()
+
+			err := sendWebRequestWithRetry(ctx, &client, server.URL, tc.reqBody)
+
+			if err != nil {
+				t.Fatalf("sendWebRequestWithRetry returned error: %v", err)
+			}
+
+			for _, gotRequest := range got {
+
+				var gotBody webhookBody
+
+				err := json.Unmarshal([]byte(gotRequest.body), &gotBody)
+
+				if err != nil {
+					t.Errorf("could not unmarshal request body: %v", err)
+				}
+			}
+
+			if (len(got) - 1) != int(tc.wantRetries) {
+				t.Errorf("did not properly retry: want %d, got %d", tc.wantRetries, len(got))
+			}
+
+		})
+	}
 }
 
 func TestBuildAuthorNames(t *testing.T) {
