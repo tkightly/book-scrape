@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strconv"
@@ -94,6 +95,7 @@ func sendWebRequestWithRetry(ctx context.Context, client *http.Client, url strin
 			if err != nil {
 				return fmt.Errorf("reading Retry-After header and converting to float64: %w", err)
 			}
+			slog.Info("rate limited", "Retry-After", retryTimer, "StatusCode", resp.StatusCode)
 
 		default:
 			return fmt.Errorf("discord returned status %d: %s", resp.StatusCode, respBody)
@@ -151,6 +153,7 @@ func SendWebhook(ctx context.Context, authorNames []string, updatedBooks []book.
 			return fmt.Errorf("sending web request: %w", err)
 		}
 
+		slog.Info("sent chunk", "chunk", i, "chunkSize", len(chunk))
 	}
 
 	return nil
