@@ -49,7 +49,7 @@ func buildAuthorNames(authorList []string) (authorString string) {
 
 func sendWebRequestWithRetry(ctx context.Context, client *http.Client, url string, body webhookBody) error {
 
-	retryTimer := 0
+	var retryTimer float64
 
 	for done := false; done == false; {
 
@@ -70,7 +70,7 @@ func sendWebRequestWithRetry(ctx context.Context, client *http.Client, url strin
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(time.Duration(retryTimer) * time.Second):
+		case <-time.After(time.Duration(retryTimer * float64(time.Second))):
 		}
 
 		resp, err := client.Do(req)
@@ -90,9 +90,9 @@ func sendWebRequestWithRetry(ctx context.Context, client *http.Client, url strin
 			done = true
 
 		case resp.StatusCode == 429:
-			retryTimer, err = strconv.Atoi(resp.Header.Get("Retry-After"))
+			retryTimer, err = strconv.ParseFloat(resp.Header.Get("Retry-After"), 64)
 			if err != nil {
-				return fmt.Errorf("reading Retry-After header and converting to int: %w", err)
+				return fmt.Errorf("reading Retry-After header and converting to float64: %w", err)
 			}
 
 		default:

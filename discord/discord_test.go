@@ -91,7 +91,7 @@ func TestSendWebRequestWithRetry(t *testing.T) {
 				if calls.Load() < tc.wantRetries {
 					calls.Add(1)
 					headers := w.Header()
-					headers.Set("Retry-After", "2")
+					headers.Set("Retry-After", "0.01")
 					w.WriteHeader(http.StatusTooManyRequests)
 				} else {
 					w.WriteHeader(http.StatusNoContent)
@@ -101,7 +101,7 @@ func TestSendWebRequestWithRetry(t *testing.T) {
 
 			client := http.Client{}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second+time.Duration(tc.wantRetries*2)*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second+time.Duration(float64(tc.wantRetries)*0.01*float64(time.Second)))
 			defer cancel()
 
 			err := sendWebRequestWithRetry(ctx, &client, server.URL, tc.reqBody)
