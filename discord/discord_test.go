@@ -280,6 +280,7 @@ func TestSendWebhook(t *testing.T) {
 	tests := []struct {
 		name              string
 		authors           []string
+		content           string
 		books             []book.Book
 		wantRequests      int
 		wantRequestBodies []webhookBody
@@ -293,11 +294,25 @@ func TestSendWebhook(t *testing.T) {
 		{
 			name:         "one book sends single request",
 			authors:      []string{"Author 1"},
+			content:      "some text",
 			books:        books[0:1],
 			wantRequests: 1,
 			wantRequestBodies: []webhookBody{
 				{
-					Content: "Search for Author 1 found 1 book",
+					Content: "some text",
+					Embeds:  embeds[0:1],
+				},
+			},
+		},
+		{
+			name:         "one book sends single request, blank content",
+			authors:      []string{"Author 1"},
+			books:        books[0:1],
+			content:      "",
+			wantRequests: 1,
+			wantRequestBodies: []webhookBody{
+				{
+					Content: "",
 					Embeds:  embeds[0:1],
 				},
 			},
@@ -305,11 +320,12 @@ func TestSendWebhook(t *testing.T) {
 		{
 			name:         "eleven books sends two requests",
 			authors:      []string{"Author 1", "Author 2", "Author 3"},
+			content:      "some text",
 			books:        books,
 			wantRequests: 2,
 			wantRequestBodies: []webhookBody{
 				{
-					Content: "Search for Author 1, Author 2 and Author 3 found 11 books",
+					Content: "some text",
 					Embeds:  embeds[0:10],
 				},
 				{
@@ -341,7 +357,7 @@ func TestSendWebhook(t *testing.T) {
 			}))
 			defer server.Close()
 
-			err := SendWebhook(context.Background(), tc.authors, tc.books, server.URL)
+			err := SendWebhook(context.Background(), tc.authors, tc.content, tc.books, server.URL)
 
 			if err != nil {
 				t.Fatalf("SendWebhook returned error: %v", err)
