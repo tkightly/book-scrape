@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -33,20 +32,7 @@ type image struct {
 
 const responseBodyReadLimit int64 = 4096
 
-func buildAuthorNames(authorList []string) (authorString string) {
-
-	switch len(authorList) {
-	case 0:
-		return ""
-	case 1:
-		return authorList[0]
-	default:
-		authorString = strings.Join(authorList[:len(authorList)-1], ", ")
-		authorString = authorString + " and " + authorList[len(authorList)-1]
-	}
-
-	return authorString
-}
+const MaxEmbedsPerMessage int = 10
 
 func sendWebRequestWithRetry(ctx context.Context, client *http.Client, url string, body webhookBody) error {
 
@@ -113,9 +99,9 @@ func sendWebRequestWithRetry(ctx context.Context, client *http.Client, url strin
 	return nil
 }
 
-func SendWebhook(ctx context.Context, authorNames []string, updatedBooks []book.Book, url string) error {
+func SendWebhook(ctx context.Context, authorNames []string, content string, updatedBooks []book.Book, url string) error {
 
-	chunks := slices.Chunk(updatedBooks, 10)
+	chunks := slices.Chunk(updatedBooks, MaxEmbedsPerMessage)
 
 	i := 0
 
@@ -137,30 +123,23 @@ func SendWebhook(ctx context.Context, authorNames []string, updatedBooks []book.
 			embeddedBooks = append(embeddedBooks, embeddedBook)
 		}
 
-		var content string
-
+		var msg string
 		if i == 0 {
-			var plural string
-			if len(updatedBooks) != 1 {
-				plural = "s"
-			}
-			content = fmt.Sprintf("Search for %s found %d book%s", buildAuthorNames(authorNames), len(updatedBooks), plural)
+			msg = content
+		}
+
+		reqBody := webhookBody{
+			Content: msg,
+			Embeds:  embeddedBooks,
 		}
 
 		i++
-
-		reqBody := webhookBody{
-			Content: content,
-			Embeds:  embeddedBooks,
-		}
 
 		err := sendWebRequestWithRetry(ctx, &client, url, reqBody)
 
 		if err != nil {
 			return fmt.Errorf("sending web request: %w", err)
 		}
-
-		slog.Info("sent chunk", "chunk", i, "chunkSize", len(chunk))
 	}
 
 	return nil
