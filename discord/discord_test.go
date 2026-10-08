@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -35,9 +37,13 @@ func TestSendWebRequestWithRetry(t *testing.T) {
 	books := book.MakeBooks("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11")
 	embeds := makeEmbeds(books...)
 	tests := []struct {
-		name        string
-		reqBody     webhookBody
-		wantRetries int32
+		name                      string
+		reqBody                   webhookBody
+		serverRateLimits          int32
+		wantRequests              int
+		wantContextTimeoutSeconds float64
+		wantRetryTimerSeconds     float64
+		wantErr                   bool
 	}{
 		{
 			name: "single embed, no rate limit",
@@ -45,7 +51,10 @@ func TestSendWebRequestWithRetry(t *testing.T) {
 				Content: "",
 				Embeds:  embeds[:1],
 			},
-			wantRetries: 0,
+			wantRequests:              1,
+			serverRateLimits:          0,
+			wantContextTimeoutSeconds: 1,
+			wantRetryTimerSeconds:     0.01,
 		},
 		{
 			name: "single embed, 1 rate limit",
@@ -53,7 +62,22 @@ func TestSendWebRequestWithRetry(t *testing.T) {
 				Content: "",
 				Embeds:  embeds[:1],
 			},
-			wantRetries: 1,
+			wantRequests:              2,
+			serverRateLimits:          1,
+			wantContextTimeoutSeconds: 1,
+			wantRetryTimerSeconds:     0.01,
+		},
+		{
+			name: "single embed, 1 rate limit longer than context deadline",
+			reqBody: webhookBody{
+				Content: "",
+				Embeds:  embeds[:1],
+			},
+			wantRequests:              1,
+			serverRateLimits:          1,
+			wantContextTimeoutSeconds: 0.01,
+			wantRetryTimerSeconds:     0.05,
+			wantErr:                   true,
 		},
 		{
 			name: "single embed, 5 rate limit",
@@ -61,7 +85,10 @@ func TestSendWebRequestWithRetry(t *testing.T) {
 				Content: "",
 				Embeds:  embeds[:1],
 			},
-			wantRetries: 5,
+			wantRequests:              6,
+			serverRateLimits:          5,
+			wantContextTimeoutSeconds: 1,
+			wantRetryTimerSeconds:     0.01,
 		},
 	}
 
@@ -88,10 +115,10 @@ func TestSendWebRequestWithRetry(t *testing.T) {
 					t.Errorf("could not unmarshal request body: %v", err)
 				}
 
-				if calls.Load() < tc.wantRetries {
+				if calls.Load() < tc.serverRateLimits {
 					calls.Add(1)
 					headers := w.Header()
-					headers.Set("Retry-After", "0.01")
+					headers.Set("Retry-After", strconv.FormatFloat(tc.wantRetryTimerSeconds, 'f', -1, 64))
 					w.WriteHeader(http.StatusTooManyRequests)
 				} else {
 					w.WriteHeader(http.StatusNoContent)
@@ -101,13 +128,21 @@ func TestSendWebRequestWithRetry(t *testing.T) {
 
 			client := http.Client{}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second+time.Duration(float64(tc.wantRetries)*0.01*float64(time.Second)))
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(tc.wantContextTimeoutSeconds*float64(time.Second)))
 			defer cancel()
 
 			err := sendWebRequestWithRetry(ctx, &client, server.URL, tc.reqBody)
 
-			if err != nil {
-				t.Fatalf("sendWebRequestWithRetry returned error: %v", err)
+			if tc.wantErr == false && err != nil {
+				t.Fatalf("sendWebRequestWithRetry returned unexpected error: %v", err)
+			}
+
+			if tc.wantErr == true && err == nil {
+				t.Fatalf("sendWebRequestWithRetry expected error, returned nil")
+			}
+
+			if tc.wantErr == true && err != nil && !strings.Contains(err.Error(), "would exceed context deadline") {
+				t.Fatalf("sendWebRequestWithRetry returned unexpected error: %v", err)
 			}
 
 			for _, gotRequest := range got {
@@ -121,8 +156,8 @@ func TestSendWebRequestWithRetry(t *testing.T) {
 				}
 			}
 
-			if (len(got) - 1) != int(tc.wantRetries) {
-				t.Errorf("did not properly retry: want %d, got %d", tc.wantRetries, len(got))
+			if len(got) != int(tc.wantRequests) {
+				t.Errorf("did not properly retry: want %d, got %d", tc.wantRequests, len(got))
 			}
 
 		})

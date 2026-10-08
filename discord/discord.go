@@ -95,6 +95,13 @@ func sendWebRequestWithRetry(ctx context.Context, client *http.Client, url strin
 			if err != nil {
 				return fmt.Errorf("reading Retry-After header and converting to float64: %w", err)
 			}
+
+			nextRetryTime := time.Now().Add(time.Duration(retryTimer * float64(time.Second)))
+			if contextDeadlineTime, ok := ctx.Deadline(); ok {
+				if nextRetryTime.After(contextDeadlineTime) {
+					return fmt.Errorf("rate limited: discord asked us to wait %f seconds: next retry %s would exceed context deadline %s: exiting", retryTimer, nextRetryTime, contextDeadlineTime)
+				}
+			}
 			slog.Info("rate limited", "Retry-After", retryTimer, "StatusCode", resp.StatusCode)
 
 		default:
