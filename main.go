@@ -9,7 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
+	"slices"
 	"strings"
 	"time"
 )
@@ -98,6 +100,8 @@ func run(ctx context.Context) error {
 
 	var updatedBooks []book.Book
 
+	slog.Info("querying for books", "authors", book.BuildAuthorNames(authors))
+
 	for _, author := range authors {
 		books, err := algolia.Search(ctx, author)
 		if err != nil {
@@ -106,6 +110,8 @@ func run(ctx context.Context) error {
 
 		updatedBooks = append(updatedBooks, books...)
 	}
+
+	slog.Info("books retrieved", "updatedBooks", len(updatedBooks))
 
 	db, err := sqlite.NewDb(cfg.dbPath)
 	if err != nil {
@@ -118,16 +124,46 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("getting stored books: %w", err)
 	}
 
+	slog.Info("books queried from DB", "storedBooks", len(storedBooks))
+
 	addedBooks, removedBooks := doDiff(storedBooks, updatedBooks)
 
-	err = discord.SendWebhook(ctx, authors, addedBooks, cfg.discordWebhookURL)
-	if err != nil {
-		return fmt.Errorf("sending discord webhook: %w", err)
-	}
+	slog.Info("books retrieved", "addedBooks", len(addedBooks), "removedBooks", len(removedBooks))
 
-	err = db.SyncBooks(ctx, addedBooks, removedBooks)
+	err = db.SyncBooks(ctx, []book.Book{}, removedBooks)
 	if err != nil {
 		return fmt.Errorf("syncing books: %w", err)
+	}
+
+	chunkedBooks := slices.Chunk(addedBooks, discord.MaxEmbedsPerMessage)
+
+	i := 0
+
+	for chunk := range chunkedBooks {
+
+		var content string
+
+		if i == 0 {
+			var plural string
+			if len(addedBooks) != 1 {
+				plural = "s"
+			}
+			content = fmt.Sprintf("Search for %s found %d book%s", book.BuildAuthorNames(authors), len(addedBooks), plural)
+		}
+
+		err = discord.SendWebhook(ctx, authors, content, chunk, cfg.discordWebhookURL)
+		if err != nil {
+			return fmt.Errorf("chunk %d: sending discord webhook: %w", i, err)
+		}
+		slog.Info("sent chunk", "chunk", i, "chunkSize", len(chunk))
+
+		err = db.SyncBooks(ctx, chunk, []book.Book{})
+		if err != nil {
+			return fmt.Errorf("chunk %d: syncing books: %w", i, err)
+		}
+		slog.Info("synced books", "chunk", i, "chunkSize", len(chunk))
+
+		i++
 	}
 
 	err = db.Close()

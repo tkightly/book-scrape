@@ -1,5 +1,9 @@
 package book
 
+import (
+	"strings"
+)
+
 type Book struct {
 	ObjectID string
 	Title    string
@@ -13,4 +17,19 @@ func MakeBooks(ids ...string) (books []Book) {
 	}
 
 	return books
+}
+
+func BuildAuthorNames(authorList []string) (authorString string) {
+
+	switch len(authorList) {
+	case 0:
+		return ""
+	case 1:
+		return authorList[0]
+	default:
+		authorString = strings.Join(authorList[:len(authorList)-1], ", ")
+		authorString = authorString + " and " + authorList[len(authorList)-1]
+	}
+
+	return authorString
 }
