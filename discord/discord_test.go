@@ -9,7 +9,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func makeEmbeds(books ...book.Book) (embeds []embed) {
@@ -26,6 +30,138 @@ func makeEmbeds(books ...book.Book) (embeds []embed) {
 	}
 
 	return embeds
+}
+
+func TestSendWebRequestWithRetry(t *testing.T) {
+
+	books := book.MakeBooks("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11")
+	embeds := makeEmbeds(books...)
+	tests := []struct {
+		name                      string
+		reqBody                   webhookBody
+		serverRateLimits          int32
+		wantRequests              int
+		wantContextTimeoutSeconds float64
+		wantRetryTimerSeconds     float64
+		wantErr                   bool
+	}{
+		{
+			name: "single embed, no rate limit",
+			reqBody: webhookBody{
+				Content: "",
+				Embeds:  embeds[:1],
+			},
+			wantRequests:              1,
+			serverRateLimits:          0,
+			wantContextTimeoutSeconds: 1,
+			wantRetryTimerSeconds:     0.01,
+		},
+		{
+			name: "single embed, 1 rate limit",
+			reqBody: webhookBody{
+				Content: "",
+				Embeds:  embeds[:1],
+			},
+			wantRequests:              2,
+			serverRateLimits:          1,
+			wantContextTimeoutSeconds: 1,
+			wantRetryTimerSeconds:     0.01,
+		},
+		{
+			name: "single embed, 1 rate limit longer than context deadline",
+			reqBody: webhookBody{
+				Content: "",
+				Embeds:  embeds[:1],
+			},
+			wantRequests:              1,
+			serverRateLimits:          1,
+			wantContextTimeoutSeconds: 0.01,
+			wantRetryTimerSeconds:     0.05,
+			wantErr:                   true,
+		},
+		{
+			name: "single embed, 5 rate limit",
+			reqBody: webhookBody{
+				Content: "",
+				Embeds:  embeds[:1],
+			},
+			wantRequests:              6,
+			serverRateLimits:          5,
+			wantContextTimeoutSeconds: 1,
+			wantRetryTimerSeconds:     0.01,
+		},
+	}
+
+	for _, tc := range tests {
+		var calls atomic.Int32
+
+		t.Run(tc.name, func(t *testing.T) {
+			var got []recordedRequest
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Errorf("reading request body: %v", err)
+				}
+
+				//record before responding
+				got = append(got, recordedRequest{
+					method:      r.Method,
+					contentType: r.Header.Get("Content-Type"),
+					userAgent:   r.Header.Get("User-Agent"),
+					body:        string(body),
+				})
+
+				if err != nil {
+					t.Errorf("could not unmarshal request body: %v", err)
+				}
+
+				if calls.Load() < tc.serverRateLimits {
+					calls.Add(1)
+					headers := w.Header()
+					headers.Set("Retry-After", strconv.FormatFloat(tc.wantRetryTimerSeconds, 'f', -1, 64))
+					w.WriteHeader(http.StatusTooManyRequests)
+				} else {
+					w.WriteHeader(http.StatusNoContent)
+				}
+			}))
+			defer server.Close()
+
+			client := http.Client{}
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(tc.wantContextTimeoutSeconds*float64(time.Second)))
+			defer cancel()
+
+			err := sendWebRequestWithRetry(ctx, &client, server.URL, tc.reqBody)
+
+			if tc.wantErr == false && err != nil {
+				t.Fatalf("sendWebRequestWithRetry returned unexpected error: %v", err)
+			}
+
+			if tc.wantErr == true && err == nil {
+				t.Fatalf("sendWebRequestWithRetry expected error, returned nil")
+			}
+
+			if tc.wantErr == true && err != nil && !strings.Contains(err.Error(), "would exceed context deadline") {
+				t.Fatalf("sendWebRequestWithRetry returned unexpected error: %v", err)
+			}
+
+			for _, gotRequest := range got {
+
+				var gotBody webhookBody
+
+				err := json.Unmarshal([]byte(gotRequest.body), &gotBody)
+
+				if err != nil {
+					t.Errorf("could not unmarshal request body: %v", err)
+				}
+			}
+
+			if len(got) != int(tc.wantRequests) {
+				t.Errorf("did not properly retry: want %d, got %d", tc.wantRequests, len(got))
+			}
+
+		})
+	}
 }
 
 func TestBuildAuthorNames(t *testing.T) {
