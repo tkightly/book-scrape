@@ -23,6 +23,7 @@ type config struct {
 	discordWebhookURL string
 	searchAuthors     string
 	dbPath            string
+	interval          string
 }
 
 func loadConfig() (config, error) {
@@ -35,6 +36,7 @@ func loadConfig() (config, error) {
 		{"DISCORD_WEBHOOK_URL", &cfg.discordWebhookURL},
 		{"SEARCH_AUTHOR_NAMES", &cfg.searchAuthors},
 		{"DB_PATH", &cfg.dbPath},
+		{"INTERVAL", &cfg.interval},
 	}
 
 	var errs []error
@@ -180,6 +182,15 @@ func main() {
 		log.Fatalf("initialising config: %v", err)
 	}
 
+	interval, err := time.ParseDuration(cfg.interval)
+	if err != nil {
+		log.Fatalf("parsing interval of %s: %v", cfg.interval, err)
+	}
+
+	if interval < 1*time.Minute {
+		log.Fatalf("interval of %s is less than 1 minute", interval)
+	}
+
 	notifyCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -197,7 +208,7 @@ func main() {
 			slog.Warn("A run did not complete successfully", "error", err)
 		}
 
-		wait := (25 * time.Minute) + rand.N(10*time.Minute)
+		wait := interval + rand.N(interval/6) - (interval / 12)
 
 		slog.Info("next run scheduled", "in", wait)
 
