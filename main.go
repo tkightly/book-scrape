@@ -10,9 +10,12 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"math/rand/v2"
 	"os"
+	"os/signal"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -79,12 +82,7 @@ func doDiff(storedBooks, updatedBooks []book.Book) (addedBooks []book.Book, remo
 	return addedBooks, removedBooks
 }
 
-func run(ctx context.Context) error {
-	cfg, err := loadConfig()
-	if err != nil {
-		return fmt.Errorf("initialising config: %w", err)
-	}
-
+func run(ctx context.Context, cfg config) error {
 	authorsSlice := strings.Split(cfg.searchAuthors, ",")
 	var authors []string
 	for i := range authorsSlice {
@@ -175,13 +173,40 @@ func run(ctx context.Context) error {
 }
 
 func main() {
+	defer slog.Info("Shutting down")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
-	defer cancel()
-
-	err := run(ctx)
+	cfg, err := loadConfig()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("initialising config: %v", err)
+	}
+
+	notifyCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	for {
+		timeoutCtx, cancel := context.WithTimeout(notifyCtx, 1*time.Minute)
+
+		err = run(timeoutCtx, cfg)
+		cancel()
+
+		if notifyCtx.Err() != nil {
+			break
+		}
+
+		if err != nil {
+			slog.Warn("A run did not complete successfully", "error", err)
+		}
+
+		wait := (25 * time.Minute) + rand.N(10*time.Minute)
+
+		slog.Info("next run scheduled", "in", wait)
+
+		select {
+		case <-notifyCtx.Done():
+			return
+		case <-time.After(wait):
+		}
+
 	}
 
 }
