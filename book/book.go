@@ -9,11 +9,13 @@ type Book struct {
 	Title    string
 	Author   string
 	ImageURL string
+	URL      string
+	Price    string
 }
 
 func MakeBooks(ids ...string) (books []Book) {
 	for _, id := range ids {
-		books = append(books, Book{ObjectID: id, Title: "Title " + id, Author: "Author " + id, ImageURL: "https://image.com/testImage" + id + ".jpg"})
+		books = append(books, Book{ObjectID: id, Title: "Title " + id, Author: "Author " + id, ImageURL: "https://image.com/testImage" + id + ".jpg", URL: "https://book.com/book" + id, Price: "£" + id})
 	}
 
 	return books
