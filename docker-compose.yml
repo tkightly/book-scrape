@@ -1,0 +1,21 @@
+services:
+  book-scrape:
+    image: registry.internal.taucetifive.com/book-scrape:${TAG:-latest}
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      # Required: compose refuses to start if these are unset, which avoids a
+      # restart loop on a container that would exit straight away.
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:?set DISCORD_WEBHOOK_URL}
+      SEARCH_AUTHOR_NAMES: ${SEARCH_AUTHOR_NAMES:?set SEARCH_AUTHOR_NAMES}
+      # A Go duration (30m, 1h). Must be at least 1m. The wait between runs has
+      # jitter of about a twelfth of this either side.
+      INTERVAL: ${INTERVAL:-30m}
+      # DB_PATH defaults to /data/db.db in the image, which is on the volume below.
+    volumes:
+      - book-scrape-data:/data
+    # A run in progress is cancelled on SIGTERM, which takes well under this.
+    stop_grace_period: 30s
+
+volumes:
+  book-scrape-data:
