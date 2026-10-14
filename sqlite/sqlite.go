@@ -29,7 +29,7 @@ func NewDb(path string) (*Db, error) {
 		conn: conn,
 	}
 
-	_, err = db.conn.Exec("CREATE TABLE IF NOT EXISTS books(ObjectID TEXT PRIMARY KEY, Title TEXT NOT NULL, Author TEXT NOT NULL, ImageURL TEXT NOT NULL)")
+	_, err = db.conn.Exec("CREATE TABLE IF NOT EXISTS books(ObjectID TEXT PRIMARY KEY, Title TEXT NOT NULL, Author TEXT NOT NULL, ImageURL TEXT NOT NULL, URL TEXT NOT NULL, Price TEXT NOT NULL)")
 
 	if err != nil {
 
@@ -38,12 +38,40 @@ func NewDb(path string) (*Db, error) {
 		return nil, fmt.Errorf("creating table: %w", err)
 	}
 
+	// CREATE TABLE IF NOT EXISTS won't add columns to a table created by an older version
+	for _, column := range []string{"URL", "Price"} {
+		if err := db.addColumnIfMissing(column); err != nil {
+			_ = conn.Close()
+			return nil, fmt.Errorf("migrating table: %w", err)
+		}
+	}
+
 	return &db, nil
+}
+
+func (d *Db) addColumnIfMissing(column string) error {
+
+	var count int
+	err := d.conn.QueryRow("SELECT COUNT(*) FROM pragma_table_info('books') WHERE name = ?", column).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("checking for column %q: %w", column, err)
+	}
+
+	if count > 0 {
+		return nil
+	}
+
+	// column is only ever one of our own constants, never user input
+	if _, err := d.conn.Exec(fmt.Sprintf("ALTER TABLE books ADD COLUMN %s TEXT NOT NULL DEFAULT ''", column)); err != nil {
+		return fmt.Errorf("adding column %q: %w", column, err)
+	}
+
+	return nil
 }
 
 func (d *Db) ListBooks(ctx context.Context) ([]book.Book, error) {
 
-	query := "SELECT ObjectID, Title, Author, ImageURL FROM books"
+	query := "SELECT ObjectID, Title, Author, ImageURL, URL, Price FROM books"
 
 	rows, err := d.conn.QueryContext(ctx, query)
 
@@ -62,7 +90,7 @@ func (d *Db) ListBooks(ctx context.Context) ([]book.Book, error) {
 		var book book.Book
 		i++
 
-		if err := rows.Scan(&book.ObjectID, &book.Title, &book.Author, &book.ImageURL); err != nil {
+		if err := rows.Scan(&book.ObjectID, &book.Title, &book.Author, &book.ImageURL, &book.URL, &book.Price); err != nil {
 			return nil, fmt.Errorf("scanning row %d: %w", i, err)
 
 		}
@@ -93,7 +121,7 @@ func (d *Db) SyncBooks(ctx context.Context, added, removed []book.Book) error {
 	}
 	defer tx.Rollback()
 
-	addedStmt, err := tx.PrepareContext(ctx, "INSERT INTO books (ObjectID, Title, Author, ImageURL) VALUES (?, ?, ?, ?) ON CONFLICT(ObjectID) DO UPDATE SET Title = excluded.Title, Author = excluded.Author, ImageURL = excluded.ImageURL")
+	addedStmt, err := tx.PrepareContext(ctx, "INSERT INTO books (ObjectID, Title, Author, ImageURL, URL, Price) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(ObjectID) DO UPDATE SET Title = excluded.Title, Author = excluded.Author, ImageURL = excluded.ImageURL, URL = excluded.URL, Price = excluded.Price")
 	if err != nil {
 		return fmt.Errorf("preparing INSERT statement: %w", err)
 	}
@@ -101,7 +129,7 @@ func (d *Db) SyncBooks(ctx context.Context, added, removed []book.Book) error {
 	defer addedStmt.Close()
 
 	for _, addedBook := range added {
-		if _, err := addedStmt.ExecContext(ctx, addedBook.ObjectID, addedBook.Title, addedBook.Author, addedBook.ImageURL); err != nil {
+		if _, err := addedStmt.ExecContext(ctx, addedBook.ObjectID, addedBook.Title, addedBook.Author, addedBook.ImageURL, addedBook.URL, addedBook.Price); err != nil {
 			return fmt.Errorf("executing INSERT statement for added book id %q, title %q: %w", addedBook.ObjectID, addedBook.Title, err)
 		}
 	}

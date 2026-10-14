@@ -20,7 +20,8 @@ func makeEmbeds(books ...book.Book) (embeds []embed) {
 	for _, embeddedBook := range books {
 		embeds = append(embeds, embed{
 			Title:       embeddedBook.Title,
-			Description: fmt.Sprintf("By %s", embeddedBook.Author),
+			URL:         embeddedBook.URL,
+			Description: fmt.Sprintf("By %s\n**%s**", embeddedBook.Author, embeddedBook.Price),
 			Color:       65280,
 			Image: &image{
 				URL: embeddedBook.ImageURL,
@@ -179,6 +180,15 @@ func TestWebhookBodyJSON(t *testing.T) {
 				},
 			},
 			want: `{"content":"1 book found","embeds":[{"title":"Peace","description":"by Gene Wolfe","color":65280,"image":{"url":"https://example.com/peace.jpg"}}]}`,
+		},
+		{
+			name: "embed with a title url",
+			body: webhookBody{
+				Embeds: []embed{
+					{Title: "Peace", URL: "https://example.com/peace", Color: 65280},
+				},
+			},
+			want: `{"embeds":[{"title":"Peace","url":"https://example.com/peace","color":65280}]}`,
 		},
 		{
 			name: "no content, no description, no image",
