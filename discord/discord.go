@@ -21,6 +21,7 @@ type webhookBody struct {
 
 type embed struct {
 	Title       string `json:"title"`
+	URL         string `json:"url,omitempty"`
 	Description string `json:"description,omitempty"`
 	Color       int    `json:"color"`
 	Image       *image `json:"image,omitempty"`
@@ -114,7 +115,8 @@ func SendWebhook(ctx context.Context, authorNames []string, content string, upda
 		for _, updatedBook := range chunk {
 			embeddedBook := embed{
 				Title:       updatedBook.Title,
-				Description: "By " + updatedBook.Author,
+				URL:         updatedBook.URL,
+				Description: fmt.Sprintf("By %s\n**%s**", updatedBook.Author, updatedBook.Price),
 				Color:       65280,
 				Image: &image{
 					URL: updatedBook.ImageURL,

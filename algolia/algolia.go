@@ -3,6 +3,7 @@ package algolia
 import (
 	"book-scrape/book"
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -26,10 +27,13 @@ type SearchResult struct {
 }
 
 type Hit struct {
-	ObjectID  string `json:"objectID"`
-	LongTitle string `json:"longTitle"`
-	Author    string `json:"author"`
-	ImageURL  string `json:"imageURL"`
+	ObjectID           string  `json:"objectID"`
+	LongTitle          string  `json:"longTitle"`
+	Author             string  `json:"author"`
+	ImageURL           string  `json:"imageURL"`
+	BestConditionPrice float64 `json:"bestConditionPrice"`
+	FromPrice          float64 `json:"fromPrice"`
+	ProductHandle      string  `json:"productHandle"`
 }
 
 type searchRequest struct {
@@ -120,14 +124,16 @@ func Search(ctx context.Context, author string) ([]book.Book, error) {
 		}
 
 		for _, hit := range results.Hits {
-			book := book.Book{
+			hitBook := book.Book{
 				ObjectID: hit.ObjectID,
 				Title:    hit.LongTitle,
 				Author:   hit.Author,
 				ImageURL: hit.ImageURL,
+				URL:      fmt.Sprintf("https://www.worldofbooks.com/en-gb/products/%s", hit.ProductHandle),
+				Price:    fmt.Sprintf("£%.2f", cmp.Or(hit.BestConditionPrice, hit.FromPrice)),
 			}
 
-			books = append(books, book)
+			books = append(books, hitBook)
 		}
 
 		page++

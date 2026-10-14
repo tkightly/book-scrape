@@ -3,6 +3,7 @@ package sqlite
 import (
 	"book-scrape/book"
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
@@ -44,28 +45,36 @@ func seedDb(t *testing.T, ctx context.Context, filePath string) (*Db, []book.Boo
 			Title:    "Test Book 1",
 			Author:   "Test Author 1",
 			ImageURL: "https://image.com/testImage1.jpg",
+			URL:      "https://book.com/book0001.jpg",
+			Price:    "£1",
 		},
 		{
 			ObjectID: "0002",
 			Title:    "Test Book 2",
 			Author:   "Test Author 2",
 			ImageURL: "https://image.com/testImage2.jpg",
+			URL:      "https://book.com/book2.jpg",
+			Price:    "£2",
 		},
 		{
 			ObjectID: "0003",
 			Title:    "Test Book 3",
 			Author:   "Test Author",
 			ImageURL: "https://image.com/testImage3.jpg",
+			URL:      "https://book.com/book3.jpg",
+			Price:    "£3",
 		},
 		{
 			ObjectID: "0004",
 			Title:    "Test Book 4",
 			Author:   "Test Author 4",
 			ImageURL: "https://image.com/testImage4.jpg",
+			URL:      "https://book.com/book4.jpg",
+			Price:    "£4",
 		},
 	}
 
-	stmt, err := db.conn.PrepareContext(ctx, "INSERT INTO books (ObjectID, Title, Author, ImageURL) VALUES (?,?,?,?) ")
+	stmt, err := db.conn.PrepareContext(ctx, "INSERT INTO books (ObjectID, Title, Author, ImageURL, URL, Price) VALUES (?,?,?,?,?,?) ")
 
 	if err != nil {
 		t.Fatalf("error: %s", err)
@@ -75,7 +84,7 @@ func seedDb(t *testing.T, ctx context.Context, filePath string) (*Db, []book.Boo
 
 	for _, book := range expectedBooks {
 
-		if _, err := stmt.ExecContext(ctx, book.ObjectID, book.Title, book.Author, book.ImageURL); err != nil {
+		if _, err := stmt.ExecContext(ctx, book.ObjectID, book.Title, book.Author, book.ImageURL, book.URL, book.Price); err != nil {
 			t.Fatalf("error: %s", err)
 		}
 
@@ -108,7 +117,7 @@ func TestNewDb(t *testing.T) {
 		t.Errorf("error: %s", err)
 	}
 
-	expectedColumnInfo := [4]columnInfo{
+	expectedColumnInfo := [6]columnInfo{
 		{
 			name: "ObjectID",
 			typ:  "TEXT",
@@ -123,6 +132,14 @@ func TestNewDb(t *testing.T) {
 		},
 		{
 			name: "ImageURL",
+			typ:  "TEXT",
+		},
+		{
+			name: "URL",
+			typ:  "TEXT",
+		},
+		{
+			name: "Price",
 			typ:  "TEXT",
 		},
 	}
@@ -215,7 +232,7 @@ func TestListBooks(t *testing.T) {
 		if got, ok := booksMap[want.ObjectID]; ok != true {
 			t.Errorf("Expected data not present: want %v, got %v", want.ObjectID, got.ObjectID)
 		} else if want != got {
-			t.Errorf("Wanted row dosn't match got row")
+			t.Errorf("got %v, want %v", want, got)
 		}
 	}
 }
@@ -234,6 +251,8 @@ func TestSyncBooks(t *testing.T) {
 				Title:    "Test Book 5",
 				Author:   "Test Author 5",
 				ImageURL: "https://image.com/testImage5.jpg",
+				URL:      "https://book.com/book5.jpg",
+				Price:    "£5",
 			},
 		}
 
@@ -243,6 +262,8 @@ func TestSyncBooks(t *testing.T) {
 				Title:    "Test Book 4",
 				Author:   "Test Author",
 				ImageURL: "https://image.com/testImage4.jpg",
+				URL:      "https://book.com/book4.jpg",
+				Price:    "£4",
 			},
 		}
 
@@ -260,24 +281,32 @@ func TestSyncBooks(t *testing.T) {
 				Title:    "Test Book 1",
 				Author:   "Test Author 1",
 				ImageURL: "https://image.com/testImage1.jpg",
+				URL:      "https://book.com/book0001.jpg",
+				Price:    "£1",
 			},
 			{
 				ObjectID: "0002",
 				Title:    "Test Book 2",
 				Author:   "Test Author 2",
 				ImageURL: "https://image.com/testImage2.jpg",
+				URL:      "https://book.com/book2.jpg",
+				Price:    "£2",
 			},
 			{
 				ObjectID: "0003",
 				Title:    "Test Book 3",
 				Author:   "Test Author",
 				ImageURL: "https://image.com/testImage3.jpg",
+				URL:      "https://book.com/book3.jpg",
+				Price:    "£3",
 			},
 			{
 				ObjectID: "0005",
 				Title:    "Test Book 5",
 				Author:   "Test Author 5",
 				ImageURL: "https://image.com/testImage5.jpg",
+				URL:      "https://book.com/book5.jpg",
+				Price:    "£5",
 			},
 		}
 
@@ -302,7 +331,7 @@ func TestSyncBooks(t *testing.T) {
 			if got, ok := booksMap[want.ObjectID]; ok != true {
 				t.Errorf("Expected data not present: want %v, got %v", want.ObjectID, got.ObjectID)
 			} else if want != got {
-				t.Errorf("Wanted row dosn't match got row")
+				t.Errorf("want %v, got %v", want, got)
 			}
 
 		}
@@ -320,6 +349,8 @@ func TestSyncBooks(t *testing.T) {
 				Title:    "Test Book 4 - updated title",
 				Author:   "Test Author 4 - new author",
 				ImageURL: "https://image.com/testImage4.jpg",
+				URL:      "https://book.com/book4.jpg",
+				Price:    "£4",
 			},
 		}
 
@@ -337,24 +368,32 @@ func TestSyncBooks(t *testing.T) {
 				Title:    "Test Book 1",
 				Author:   "Test Author 1",
 				ImageURL: "https://image.com/testImage1.jpg",
+				URL:      "https://book.com/book0001.jpg",
+				Price:    "£1",
 			},
 			{
 				ObjectID: "0002",
 				Title:    "Test Book 2",
 				Author:   "Test Author 2",
 				ImageURL: "https://image.com/testImage2.jpg",
+				URL:      "https://book.com/book2.jpg",
+				Price:    "£2",
 			},
 			{
 				ObjectID: "0003",
 				Title:    "Test Book 3",
 				Author:   "Test Author",
 				ImageURL: "https://image.com/testImage3.jpg",
+				URL:      "https://book.com/book3.jpg",
+				Price:    "£3",
 			},
 			{
 				ObjectID: "0004",
 				Title:    "Test Book 4 - updated title",
 				Author:   "Test Author 4 - new author",
 				ImageURL: "https://image.com/testImage4.jpg",
+				URL:      "https://book.com/book4.jpg",
+				Price:    "£4",
 			},
 		}
 
@@ -379,7 +418,7 @@ func TestSyncBooks(t *testing.T) {
 			if got, ok := booksMap[want.ObjectID]; ok != true {
 				t.Errorf("Expected data not present: want %v, got %v", want.ObjectID, got.ObjectID)
 			} else if want != got {
-				t.Errorf("Wanted row dosn't match got row")
+				t.Errorf("got %v, want %v", want, got)
 			}
 
 		}
@@ -397,6 +436,8 @@ func TestSyncBooks(t *testing.T) {
 				Title:    "Test Book 6",
 				Author:   "Test Author 6",
 				ImageURL: "https://image.com/testImage6.jpg",
+				URL:      "https://book.com/book6.jpg",
+				Price:    "£6",
 			},
 		}
 
@@ -406,6 +447,8 @@ func TestSyncBooks(t *testing.T) {
 				Title:    "Test Book 6",
 				Author:   "Test Author 6",
 				ImageURL: "https://image.com/testImage6.jpg",
+				URL:      "https://book.com/book6.jpg",
+				Price:    "£6",
 			},
 		}
 
@@ -423,30 +466,40 @@ func TestSyncBooks(t *testing.T) {
 				Title:    "Test Book 1",
 				Author:   "Test Author 1",
 				ImageURL: "https://image.com/testImage1.jpg",
+				URL:      "https://book.com/book0001.jpg",
+				Price:    "£1",
 			},
 			{
 				ObjectID: "0002",
 				Title:    "Test Book 2",
 				Author:   "Test Author 2",
 				ImageURL: "https://image.com/testImage2.jpg",
+				URL:      "https://book.com/book2.jpg",
+				Price:    "£2",
 			},
 			{
 				ObjectID: "0003",
 				Title:    "Test Book 3",
 				Author:   "Test Author",
 				ImageURL: "https://image.com/testImage3.jpg",
+				URL:      "https://book.com/book3.jpg",
+				Price:    "£3",
 			},
 			{
 				ObjectID: "0004",
 				Title:    "Test Book 4",
 				Author:   "Test Author 4",
 				ImageURL: "https://image.com/testImage4.jpg",
+				URL:      "https://book.com/book4.jpg",
+				Price:    "£4",
 			},
 			{
 				ObjectID: "0006",
 				Title:    "Test Book 6",
 				Author:   "Test Author 6",
 				ImageURL: "https://image.com/testImage6.jpg",
+				URL:      "https://book.com/book6.jpg",
+				Price:    "£6",
 			},
 		}
 
@@ -471,9 +524,46 @@ func TestSyncBooks(t *testing.T) {
 			if got, ok := booksMap[want.ObjectID]; ok != true {
 				t.Errorf("Expected data not present: want %v, got %v", want.ObjectID, got.ObjectID)
 			} else if want != got {
-				t.Errorf("Wanted row dosn't match got row")
+				t.Errorf("got %v, want %v", want, got)
 			}
 
 		}
 	})
+}
+
+func TestNewDbMigratesOldSchema(t *testing.T) {
+
+	path := filepath.Join(t.TempDir(), "old.db")
+
+	old, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("error: %s", err)
+	}
+	_, err = old.Exec("CREATE TABLE books(ObjectID TEXT PRIMARY KEY, Title TEXT NOT NULL, Author TEXT NOT NULL, ImageURL TEXT NOT NULL)")
+	if err != nil {
+		t.Fatalf("error: %s", err)
+	}
+	_, err = old.Exec("INSERT INTO books VALUES ('1', 'Title 1', 'Author 1', 'https://image.com/1.jpg')")
+	if err != nil {
+		t.Fatalf("error: %s", err)
+	}
+	old.Close()
+
+	// opening twice also proves the migration is idempotent
+	for range 2 {
+		db, err := NewDb(path)
+		if err != nil {
+			t.Fatalf("NewDb: %s", err)
+		}
+
+		books, err := db.ListBooks(context.Background())
+		if err != nil {
+			t.Fatalf("ListBooks: %s", err)
+		}
+		if len(books) != 1 || books[0].ObjectID != "1" || books[0].URL != "" || books[0].Price != "" {
+			t.Errorf("unexpected books after migration: %+v", books)
+		}
+
+		db.Close()
+	}
 }

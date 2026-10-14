@@ -93,9 +93,9 @@ func TestSearch(t *testing.T) {
 		var resp Response
 
 		if jsonBody.Requests[0].Page == 0 {
-			resp = Response{Results: []SearchResult{{Hits: []Hit{{ObjectID: "test-id-1", Author: "Gene Wolfe"}}, Page: 0, Pages: 2}}}
+			resp = Response{Results: []SearchResult{{Hits: []Hit{{ObjectID: "test-id-1", Author: "Gene Wolfe", ProductHandle: "peace", BestConditionPrice: 6.5}}, Page: 0, Pages: 2}}}
 		} else if jsonBody.Requests[0].Page == 1 {
-			resp = Response{Results: []SearchResult{{Hits: []Hit{{ObjectID: "test-id", Author: "Andy Weir"}}, Page: 1, Pages: 2}}}
+			resp = Response{Results: []SearchResult{{Hits: []Hit{{ObjectID: "test-id", Author: "Andy Weir", ProductHandle: "the-martian", FromPrice: 10}}, Page: 1, Pages: 2}}}
 		}
 
 		respJson, err := json.Marshal(resp)
@@ -132,6 +132,20 @@ func TestSearch(t *testing.T) {
 
 	if hits[1].Author != "Andy Weir" {
 		t.Errorf("Got %v, want %v", hits[1].Author, "Andy Weir")
+	}
+
+	if hits[0].URL != "https://www.worldofbooks.com/en-gb/products/peace" {
+		t.Errorf("Got %v, want %v", hits[0].URL, "https://www.worldofbooks.com/en-gb/products/peace")
+	}
+
+	// BestConditionPrice is preferred and formatted to two decimal places
+	if hits[0].Price != "£6.50" {
+		t.Errorf("Got %v, want %v", hits[0].Price, "£6.50")
+	}
+
+	// falls back to FromPrice when BestConditionPrice is zero
+	if hits[1].Price != "£10.00" {
+		t.Errorf("Got %v, want %v", hits[1].Price, "£10.00")
 	}
 
 }
